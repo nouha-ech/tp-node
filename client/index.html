@@ -1,0 +1,417 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Gestion des Posts - Node.js API</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 30px;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1d4ed8;
+        }
+
+        .form-container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            margin: 5px 3px;
+        }
+
+        .add-btn {
+            background: #2563eb;
+        }
+
+        .edit-btn {
+            background: #d97706;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+        }
+
+        .refresh-btn {
+            background: #475569;
+        }
+
+        .post {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+        }
+
+        .post h3 {
+            color: #1d4ed8;
+        }
+
+        .post p {
+            line-height: 1.6;
+        }
+
+        .post small {
+            color: #64748b;
+        }
+
+        #message {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Gestion des Posts</h1>
+
+    <p style="text-align:center">
+        Application de gestion des publications avec Node.js et API REST
+    </p>
+
+    <!-- Formulaire -->
+    <div class="form-container">
+
+        <h2 id="formTitle">Ajouter un post</h2>
+
+        <input
+            type="number"
+            id="userId"
+            placeholder="User ID"
+            min="1"
+            value="1"
+        >
+
+        <input
+            type="text"
+            id="title"
+            placeholder="Titre du post"
+        >
+
+        <textarea
+            id="body"
+            placeholder="Contenu du post"
+        ></textarea>
+
+        <button class="add-btn" onclick="savePost()">
+            Enregistrer
+        </button>
+
+        <button
+            class="refresh-btn"
+            onclick="resetForm()"
+        >
+            Annuler
+        </button>
+
+    </div>
+
+    <div id="message"></div>
+
+    <!-- Liste des posts -->
+    <div style="display:flex; justify-content:space-between; align-items:center">
+
+        <h2>Liste des publications</h2>
+
+        <button class="refresh-btn" onclick="loadPosts()">
+            Actualiser
+        </button>
+
+    </div>
+
+    <div id="posts">
+        Chargement des posts...
+    </div>
+
+</div>
+
+<script>
+
+    // URL de notre API
+    const API_URL = 'http://localhost:3000/api/posts';
+
+    // ID du post en cours de modification
+    let editingId = null;
+
+    // Afficher un message
+    function showMessage(message, color = 'green') {
+
+        const element = document.getElementById('message');
+
+        element.textContent = message;
+        element.style.color = color;
+    }
+
+    // Charger tous les posts
+    async function loadPosts() {
+
+        const container = document.getElementById('posts');
+
+        container.textContent = 'Chargement...';
+
+        try {
+
+            const response = await fetch(API_URL);
+
+            if (!response.ok) {
+                throw new Error('Erreur lors du chargement');
+            }
+
+            const posts = await response.json();
+
+            container.innerHTML = '';
+
+            if (posts.length === 0) {
+                container.textContent = 'Aucun post disponible.';
+                return;
+            }
+
+            posts.forEach(post => {
+
+                const article = document.createElement('article');
+                article.className = 'post';
+
+                const heading = document.createElement('h3');
+                heading.textContent = `#${post.id} - ${post.title}`;
+
+                const user = document.createElement('small');
+                user.textContent = `Utilisateur : ${post.userId}`;
+
+                const content = document.createElement('p');
+                content.textContent = post.body;
+
+                const editButton = document.createElement('button');
+                editButton.className = 'edit-btn';
+                editButton.textContent = 'Modifier';
+                editButton.onclick = () => editPost(post.id);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-btn';
+                deleteButton.textContent = 'Supprimer';
+                deleteButton.onclick = () => deletePost(post.id);
+
+                article.append(
+                    heading,
+                    user,
+                    content,
+                    editButton,
+                    deleteButton
+                );
+
+                container.appendChild(article);
+
+            });
+
+        } catch (error) {
+
+            container.textContent = 'Impossible de contacter le serveur.';
+            showMessage(error.message, 'red');
+
+        }
+    }
+
+    // Ajouter ou modifier un post
+    async function savePost() {
+
+        const userId = document.getElementById('userId').value;
+        const title = document.getElementById('title').value.trim();
+        const body = document.getElementById('body').value.trim();
+
+        if (
+            !Number.isInteger(Number(userId)) ||
+            Number(userId) <= 0 ||
+            !title ||
+            !body
+        ) {
+            showMessage('Veuillez remplir correctement tous les champs.', 'red');
+            return;
+        }
+
+        const postData = {
+            userId: Number(userId),
+            title: title,
+            body: body
+        };
+
+        const isEditing = editingId !== null;
+
+        const method = isEditing ? 'PUT' : 'POST';
+
+        const url = isEditing
+            ? `${API_URL}/${editingId}`
+            : API_URL;
+
+        try {
+
+            const response = await fetch(url, {
+
+                method: method,
+
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+
+                body: JSON.stringify(postData)
+
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erreur');
+            }
+
+            showMessage(
+                isEditing
+                    ? 'Post modifié avec succès !'
+                    : 'Post ajouté avec succès !'
+            );
+
+            resetForm();
+            loadPosts();
+
+        } catch (error) {
+
+            showMessage(error.message, 'red');
+
+        }
+    }
+
+    // Préparer la modification
+    async function editPost(id) {
+
+        try {
+
+            const response = await fetch(`${API_URL}/${id}`);
+
+            if (!response.ok) {
+                throw new Error('Post introuvable');
+            }
+
+            const post = await response.json();
+
+            editingId = id;
+
+            document.getElementById('userId').value = post.userId;
+            document.getElementById('title').value = post.title;
+            document.getElementById('body').value = post.body;
+
+            document.getElementById('formTitle').textContent =
+                'Modifier le post #' + id;
+
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+
+        } catch (error) {
+
+            showMessage(error.message, 'red');
+
+        }
+    }
+
+    // Supprimer un post
+    async function deletePost(id) {
+
+        if (!confirm('Voulez-vous vraiment supprimer ce post ?')) {
+            return;
+        }
+
+        try {
+
+            const response = await fetch(`${API_URL}/${id}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erreur');
+            }
+
+            showMessage('Post supprimé avec succès !');
+
+            loadPosts();
+
+        } catch (error) {
+
+            showMessage(error.message, 'red');
+
+        }
+    }
+
+    // Réinitialiser le formulaire
+    function resetForm() {
+
+        editingId = null;
+
+        document.getElementById('userId').value = 1;
+        document.getElementById('title').value = '';
+        document.getElementById('body').value = '';
+
+        document.getElementById('formTitle').textContent =
+            'Ajouter un post';
+
+    }
+
+    // Charger les posts au démarrage
+    loadPosts();
+
+</script>
+
+</body>
+</html>
